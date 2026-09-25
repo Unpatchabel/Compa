@@ -50,3 +50,4 @@ button{color:inherit}
 .preview-continue{margin-top:8px;font-size:12px;background:transparent;border:0;text-decoration:underline;text-underline-offset:3px}
 .chat-history{background:var(--bg);color:var(--ink)}
 @media(max-width:620px){.pixel-sprite{opacity:.26}.dashboard .pixel-sprite{opacity:.22}.art-options{gap:7px}.art-choice{font-size:11px;padding:8px}.art-choice svg{width:31px;height:31px}}
+@media(max-width:620px){input,select,textarea,.dialog input,.dialog select,.dialog textarea,.opener-label textarea,.chat-form input{font-size:16px}}
