@@ -75,7 +75,7 @@ let me = null, profile = null, people = [], outgoing = [], incoming = [], matche
 let section = 'personal', academicLevel = 'bachelors', academicYear = 'year1';
 let selected = 'music', activeView = 'discover', onboardingStep = 0, toastTimer, chatChannel = null, chatMatchId = null, chatMessages = new Map();
 let draft = {name:'',area:'',theme:'sunny',art:'talk',primary:'music',secondary:'gaming',answers:[]};
-let loading = false, lastSessionId = null;
+let loading = false, loadingEpoch = -1, lastSessionId = null, authEpoch = 0, refreshToken = 0;
 const introStarted = performance.now();
 let introReleased = false, introPendingDialog = null;
 function openWhenReady(id){if(introReleased)$(id).showModal();else introPendingDialog=id}
@@ -100,32 +100,76 @@ function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.classNa
 function button(label,cls,fn){const b=node('button',cls,label);b.type='button';b.onclick=fn;return b}
 function contentBox(title,copy,label,fn){const box=node('div','message');box.append(node('h3','',title),node('p','',copy));if(label)box.append(button(label,'action light',fn));return box}
 function closeChat(){if(chatChannel){client.removeChannel(chatChannel);chatChannel=null}chatMatchId=null;chatMessages.clear();if($('chat-dialog').open)$('chat-dialog').close()}
-async function reset(){me=null;profile=null;people=[];outgoing=[];incoming=[];matches=[];blocked=new Set();passed=new Set();lastSessionId=null;closeChat();clearDialogs();$('signup-content').replaceChildren();theme('sunny');document.body.classList.add('onboarding-pending');showAuth()}
-async function loadSession(){if(!client)return;const {data:{session},error}=await client.auth.getSession();if(error){err(error);return}if(!session){await reset();return}const sessionId=session.user.id;if(lastSessionId===sessionId&&profile)return;me=session.user;lastSessionId=sessionId;await loadProfile()}
-async function loadProfile(){const {data,error}=await client.from('profiles').select('*').eq('id',me.id).maybeSingle();if(error){err(error);return}profile=data;
- if(!profile){document.body.classList.add('onboarding-pending');if(!$('signup-dialog').open)showOnboarding();return}
- selected=interests.has(profile.primary_interest)?profile.primary_interest:'music';theme(profile.theme);clearDialogs();document.body.classList.remove('onboarding-pending');await refresh();render();
+function clearAccount(){
+ authEpoch++;refreshToken++;loading=false;loadingEpoch=-1;me=null;profile=null;people=[];outgoing=[];incoming=[];matches=[];
+ blocked=new Set();passed=new Set();lastSessionId=null;closeChat();clearDialogs();
+ $('signup-content').replaceChildren();$('connection-area').replaceChildren();$('network-nodes').replaceChildren();$('candidate-area').replaceChildren();
+ theme('sunny');document.body.classList.add('onboarding-pending');
 }
-async function refresh(){if(!me||loading)return;loading=true;try{
- const [all,likesOut,likesIn,links,blocks,passes]=await Promise.all([
-  client.from('profiles').select('id,name,area,primary_interest,secondary_interest,academic_category,answers,theme,art,created_at').order('created_at',{ascending:false}).limit(500),
-  client.from('likes').select('*').eq('sender',me.id).gt('expires_at',new Date().toISOString()),
-  client.from('likes').select('*').eq('target',me.id).gt('expires_at',new Date().toISOString()),
-  client.from('matches').select('*').or(`person_a.eq.${me.id},person_b.eq.${me.id}`).is('ended_at',null),
-  client.from('blocks').select('blocked').eq('blocker',me.id),
-  client.from('passes').select('target').eq('viewer',me.id)
- ]);
- for(const q of [all,likesOut,likesIn,links,blocks,passes])if(q.error)throw q.error;
- people=all.data||[];outgoing=likesOut.data||[];incoming=likesIn.data||[];matches=links.data||[];blocked=new Set((blocks.data||[]).map(x=>x.blocked));passed=new Set((passes.data||[]).map(x=>x.target));
- }catch(e){err(e)}finally{loading=false}}
-async function updated(){await refresh();if(profile)render()}
+function reset(){if(!me&&!profile&&$('auth-dialog').open)return;clearAccount();showAuth()}
+function showAccountLoadError(){
+ const root=$('auth-content');root.replaceChildren(node('h2','','Could not open your account.'),node('p','','Check your connection, then try again. Your sign-in is still saved on this device.'));
+ const retry=button('Retry','action dark',()=>{retry.disabled=true;retry.textContent='Loading…';loadSession()});
+ const leave=button('Sign out / switch account','preview-continue',async()=>{leave.disabled=true;const {error}=await client.auth.signOut({scope:'local'});if(error){leave.disabled=false;err(error)}else reset()});
+ root.append(retry,leave);if(!$('auth-dialog').open)openWhenReady('auth-dialog')
+}
+async function loadSession(){
+ if(!client)return;
+ const epoch=++authEpoch;
+ const {data,error}=await client.auth.getSession();
+ if(epoch!==authEpoch)return;
+ if(error){err(error);if(!profile)showAccountLoadError();return}
+ const session=data.session;
+ if(!session){reset();return}
+ const userId=session.user.id;
+ if(lastSessionId===userId&&profile&&!document.body.classList.contains('onboarding-pending'))return;
+ if(me&&me.id!==userId)clearAccount();
+ const currentEpoch=authEpoch;
+ me=session.user;lastSessionId=userId;
+ await loadProfile(userId,currentEpoch)
+}
+async function loadProfile(userId=me?.id,epoch=authEpoch){
+ if(!userId)return;
+ const {data,error}=await client.from('profiles').select('*').eq('id',userId).maybeSingle();
+ if(epoch!==authEpoch||me?.id!==userId)return;
+ if(error){err(error);showAccountLoadError();return}
+ profile=data;
+ if(!profile){document.body.classList.add('onboarding-pending');if(!$('signup-dialog').open)showOnboarding();return}
+ selected=interests.has(profile.primary_interest)?profile.primary_interest:'music';theme(profile.theme);
+ const loaded=await refresh();
+ if(epoch!==authEpoch||me?.id!==userId)return;
+ if(!loaded){showAccountLoadError();return}
+ clearDialogs();document.body.classList.remove('onboarding-pending');render()
+}
+async function refresh(){
+ const owner=me?.id,epoch=authEpoch;
+ if(!owner||(loading&&loadingEpoch===epoch))return false;
+ const token=++refreshToken;loading=true;loadingEpoch=epoch;
+ try{
+  const [all,likesOut,likesIn,links,blocks,passes]=await Promise.all([
+   client.from('profiles').select('id,name,area,primary_interest,secondary_interest,academic_category,answers,theme,art,created_at').order('created_at',{ascending:false}).limit(500),
+   client.from('likes').select('*').eq('sender',owner).gt('expires_at',new Date().toISOString()),
+   client.from('likes').select('*').eq('target',owner).gt('expires_at',new Date().toISOString()),
+   client.from('matches').select('*').or(`person_a.eq.${owner},person_b.eq.${owner}`).is('ended_at',null),
+   client.from('blocks').select('blocked').eq('blocker',owner),
+   client.from('passes').select('target').eq('viewer',owner)
+  ]);
+  if(epoch!==authEpoch||me?.id!==owner)return false;
+  for(const q of [all,likesOut,likesIn,links,blocks,passes])if(q.error)throw q.error;
+  people=all.data||[];outgoing=likesOut.data||[];incoming=likesIn.data||[];matches=links.data||[];
+  blocked=new Set((blocks.data||[]).map(x=>x.blocked));passed=new Set((passes.data||[]).map(x=>x.target));
+  return true
+ }catch(e){if(epoch===authEpoch&&me?.id===owner)err(e);return false}
+ finally{if(token===refreshToken){loading=false;loadingEpoch=-1}}
+}
+async function updated(){if(await refresh()&&profile)render()}
 function showAuth(message=''){clearDialogs();const root=$('auth-content');root.replaceChildren();const title=node('h2','','Welcome to Compa.');const sub=node('p','',message||'Friendship only. Meet people through shared interests and compatible social energy.');
- const google=button('Continue with Google','action light',async()=>{google.disabled=true;const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});if(error){google.disabled=false;err(error)}});
+ const google=button('Continue with Google','action light',async()=>{google.disabled=true;google.textContent='Opening Google…';try{const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname,queryParams:{prompt:'select_account'}}});if(error)throw error}catch(error){err(error);google.disabled=false;google.textContent='Continue with Google'}});
  google.style.width='100%';google.style.margin='8px 0 18px';
  const form=node('form');const email=node('label','');email.textContent='Email';const emailInput=node('input');emailInput.type='email';emailInput.required=true;emailInput.autocomplete='email';emailInput.placeholder='you@example.com';email.append(emailInput);
  const password=node('label','');password.textContent='Password';const passInput=node('input');passInput.type='password';passInput.required=true;passInput.minLength=8;passInput.autocomplete='current-password';password.append(passInput);
  const submit=node('button','action dark','Sign in to existing account');submit.type='submit';const forgot=button('Forgot password?','preview-continue',async()=>{if(!emailInput.validity.valid){toast('Enter your email first.');return}const {error}=await client.auth.resetPasswordForEmail(emailInput.value.trim(),{redirectTo:location.origin+location.pathname});if(error)err(error);else toast('If that address has an account, check its inbox for a reset link.')});
- form.append(email,password,submit,forgot);form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;try{const {data,error}=await client.auth.signInWithPassword({email:emailInput.value.trim(),password:passInput.value});if(error)throw error;passInput.value='';if(data.session)await loadSession()}catch(error){err(error)}finally{submit.disabled=false}};
+ form.append(email,password,submit,forgot);form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;submit.textContent='Signing in…';try{const {error}=await client.auth.signInWithPassword({email:emailInput.value.trim(),password:passInput.value});if(error)throw error;passInput.value=''}catch(error){err(error)}finally{submit.disabled=false;submit.textContent='Sign in to existing account'}};
  const notice=node('p','small-print','New to Compa? Continue with Google. Email and password sign-in is for existing accounts.');root.append(title,sub,google,node('p','small-print','Already have a Compa password?'),form,notice);openWhenReady('auth-dialog')}
 function showPasswordRecovery(){clearDialogs();const root=$('auth-content');root.replaceChildren(node('h2','','Set a new password.'),node('p','','Choose a new password for your existing account.'));const form=node('form'),label=node('label','','New password'),input=node('input');input.type='password';input.required=true;input.minLength=8;input.autocomplete='new-password';label.append(input);const submit=node('button','action dark','Save new password');submit.type='submit';form.append(label,submit);form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;const {error}=await client.auth.updateUser({password:input.value});input.value='';submit.disabled=false;if(error)err(error);else{$('auth-dialog').close();toast('Password updated.');await loadSession()}};root.append(form);openWhenReady('auth-dialog')}
 function makeProgress(){const d=node('div','step-progress');for(let i=0;i<5;i++){const x=node('span');x.classList.toggle('done',i<=onboardingStep);d.append(x)}return d}
@@ -203,11 +247,12 @@ function openProfile(){const root=$('profile-content');root.replaceChildren();ro
  const first=node('label','','Primary interest');const primary=interestSelect('primary',profile.primary_interest);first.append(primary);const second=node('label','','Secondary interest');const secondary=interestSelect('secondary',profile.secondary_interest);second.append(secondary);const academic=academicSelect(profile.academic_category);
  let chosenTheme=profile.theme,chosenArt=profile.art;const submit=node('button','action dark','Save changes ↗');submit.type='submit';form.append(name,area,first,second,academic.label,node('div','kicker','YOUR COLORS'),choiceGroup(themeLabels,chosenTheme,t=>{chosenTheme=t;theme(t)}),node('div','kicker','YOUR PIXEL ART'),choiceGroup(pixelPresets,chosenArt,a=>chosenArt=a,true),submit);
  form.onsubmit=async e=>{e.preventDefault();if(primary.value===secondary.value){toast('Pick a different secondary interest.');return}submit.disabled=true;const {error}=await client.from('profiles').update({name:nameInput.value.trim(),area:areaInput.value.trim(),primary_interest:primary.value,secondary_interest:secondary.value,academic_category:academic.select.value||null,theme:chosenTheme,art:chosenArt}).eq('id',me.id);submit.disabled=false;if(error)err(error);else{profile={...profile,name:nameInput.value.trim(),area:areaInput.value.trim(),primary_interest:primary.value,secondary_interest:secondary.value,academic_category:academic.select.value||null,theme:chosenTheme,art:chosenArt};selected=primary.value;$('profile-dialog').close();await updated()}};
- root.append(form,button('Sign out','preview-continue',async()=>{const {error}=await client.auth.signOut();if(error)err(error);else await reset()}));$('profile-dialog').showModal()}
+ root.append(form,node('p','small-print',`Signed in as ${me?.email||'your account'} on this device.`));const signout=button('Sign out / switch account','preview-continue',async()=>{signout.disabled=true;signout.textContent='Signing out…';const {error}=await client.auth.signOut({scope:'local'});if(error){signout.disabled=false;signout.textContent='Sign out / switch account';err(error)}else reset()});root.append(signout);$('profile-dialog').showModal()}
 function scrollEffects(){const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;for(const p of document.querySelectorAll('#discover-view:not(.hidden) .scroll-panel')){if(reduced){p.style.opacity='';p.style.transform='';continue}const r=p.getBoundingClientRect(),progress=Math.max(0,Math.min(1,-r.top/(r.height*.8)));p.style.opacity=String(1-progress*.85);p.style.transform=`translateY(${-progress*28}px)`}}
 for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>setView(b.dataset.view);
 $('discover-button').onclick=()=>$('interests').scrollIntoView({behavior:'smooth'});
 $('profile-button').onclick=()=>profile?openProfile():toast('Finish setting up your profile first.');
+$('onboarding-signout').onclick=async()=>{const control=$('onboarding-signout');control.disabled=true;control.textContent='Signing out…';const {error}=await client.auth.signOut({scope:'local'});if(error){control.disabled=false;control.textContent='Sign out / switch account';err(error)}else reset()};
 window.addEventListener('scroll',scrollEffects,{passive:true});window.addEventListener('resize',()=>{drawWires();scrollEffects()},{passive:true});new ResizeObserver(()=>requestAnimationFrame(drawWires)).observe($('network'));
 for(const id of ['auth-dialog','signup-dialog'])$(id).addEventListener('cancel',e=>e.preventDefault());
-phrase();if(client){client.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')setTimeout(showPasswordRecovery,0);else if(event==='SIGNED_IN'||event==='SIGNED_OUT')setTimeout(loadSession,0)});loadSession().catch(err).finally(finishIntro);setInterval(async()=>{if(profile){await updated();if(chatMatchId)await fetchChat(chatMatchId)}},10000)}else{document.body.classList.add('onboarding-pending');$('auth-content').replaceChildren(node('h2','','Setup needed'),node('p','','Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY before running the live app. See README.md.'));openWhenReady('auth-dialog');finishIntro()}
+phrase();if(client){client.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')setTimeout(showPasswordRecovery,0);else if(event==='SIGNED_OUT')setTimeout(reset,0);else if(event==='SIGNED_IN')setTimeout(loadSession,0)});loadSession().catch(err).finally(finishIntro);setInterval(async()=>{if(profile&&!document.hidden){await updated();if(chatMatchId)await fetchChat(chatMatchId)}},30000)}else{document.body.classList.add('onboarding-pending');$('auth-content').replaceChildren(node('h2','','Setup needed'),node('p','','Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY before running the live app. See README.md.'));openWhenReady('auth-dialog');finishIntro()}
