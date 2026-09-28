@@ -10,10 +10,27 @@
 <body data-theme="sunny" class="onboarding-pending intro-running">
   <div id="intro" class="intro-screen" role="status" aria-label="Opening Compa">
     <div class="intro-stage" aria-hidden="true">
-      <div class="intro-connection intro-connection-left"><span class="intro-orbit"></span><span class="intro-line"></span></div>
-      <div class="intro-brand"><span class="intro-name">compa</span><span class="intro-spark"></span></div>
-      <div class="intro-connection intro-connection-right"><span class="intro-line"></span><span class="intro-orbit"></span></div>
-      <div class="intro-caption">FIND YOUR PEOPLE</div>
+      <svg class="intro-art" viewBox="0 0 1000 320" preserveAspectRatio="xMidYMid meet" focusable="false">
+        <path class="intro-thread" style="--thread:#ff8d5b;--delay:0.000s" d="M -30 45 L 235 45 C 430 45, 356.7 251.9, 428.7 209.9"/>
+        <path class="intro-thread" style="--thread:#a995ff;--delay:0.065s" d="M -30 89 L 235 89 C 430 89, 344.0 140.5, 416.0 182.5"/>
+        <path class="intro-thread" style="--thread:#5bd3df;--delay:0.130s" d="M -30 133 L 235 133 C 430 133, 341.3 194.4, 413.3 152.4"/>
+        <path class="intro-thread" style="--thread:#fa8fa0;--delay:0.195s" d="M -30 177 L 235 177 C 430 177, 349.2 81.2, 421.2 123.2"/>
+        <path class="intro-thread" style="--thread:#b9ff39;--delay:0.260s" d="M -30 221 L 235 221 C 430 221, 366.5 140.5, 438.5 98.5"/>
+        <path class="intro-thread" style="--thread:#ff4cc3;--delay:0.325s" d="M 1030 67 L 765 67 C 570 67, 643.3 68.1, 571.3 110.1"/>
+        <path class="intro-thread" style="--thread:#9e90ff;--delay:0.390s" d="M 1030 122 L 765 122 C 570 122, 656.8 182.4, 584.8 140.4"/>
+        <path class="intro-thread" style="--thread:#f6b854;--delay:0.455s" d="M 1030 177 L 765 177 C 570 177, 657.9 131.6, 585.9 173.6"/>
+        <path class="intro-thread" style="--thread:#94dcb6;--delay:0.520s" d="M 1030 232 L 765 232 C 570 232, 646.6 246.8, 574.6 204.8"/>
+        <circle class="intro-arc" style="--thread:#ff8d5b;--delay:0.000s" cx="500" cy="160" r="87" transform="rotate(-90 500 160)"/>
+        <circle class="intro-arc" style="--thread:#a995ff;--delay:0.055s" cx="500" cy="160" r="87" transform="rotate(-50 500 160)"/>
+        <circle class="intro-arc" style="--thread:#5bd3df;--delay:0.110s" cx="500" cy="160" r="87" transform="rotate(-10 500 160)"/>
+        <circle class="intro-arc" style="--thread:#fa8fa0;--delay:0.165s" cx="500" cy="160" r="87" transform="rotate(30 500 160)"/>
+        <circle class="intro-arc" style="--thread:#b9ff39;--delay:0.220s" cx="500" cy="160" r="87" transform="rotate(70 500 160)"/>
+        <circle class="intro-arc" style="--thread:#ff4cc3;--delay:0.275s" cx="500" cy="160" r="87" transform="rotate(110 500 160)"/>
+        <circle class="intro-arc" style="--thread:#9e90ff;--delay:0.330s" cx="500" cy="160" r="87" transform="rotate(150 500 160)"/>
+        <circle class="intro-arc" style="--thread:#f6b854;--delay:0.385s" cx="500" cy="160" r="87" transform="rotate(190 500 160)"/>
+        <circle class="intro-arc" style="--thread:#94dcb6;--delay:0.440s" cx="500" cy="160" r="87" transform="rotate(230 500 160)"/>
+      </svg>
+      <div class="intro-brand"><span class="intro-name">compa</span><span class="intro-tagline">FIND YOUR PEOPLE</span></div>
     </div>
   </div>
   <div class="shell">
@@ -24,15 +41,15 @@
     </header>
     <main id="discover-view" class="view">
       <section class="panel dashboard scroll-panel" id="dashboard"><div class="pixel-scene" aria-hidden="true"></div>
-        <div class="dash-copy"><div class="kicker">YOUR LITTLE CORNER OF COMPA</div><h1 id="hero-title">Hey, <em>you.</em></h1><p id="daily-phrase">Some conversations feel like finding the right frequency.</p><button id="discover-button" class="action dark">Find your person <span>↗</span></button><div class="dash-footer"><span class="dash-pulse">●</span> A DIFFERENT WAY TO BE TOGETHER</div></div>
-        <div class="network" id="network" aria-label="Your friends by interest"><div class="network-head"><span>YOUR CONNECTIONS</span><span>ONE FRIEND PER INTEREST</span></div><div class="network-center"><span id="network-initial">Y</span><small>YOU</small></div><div id="network-nodes" class="network-nodes"></div><div class="network-foot">TAP A NAME TO PICK UP WHERE YOU LEFT OFF ↗</div></div>
+        <div class="dash-copy"><div class="kicker">YOUR LITTLE CORNER OF COMPA</div><h1 id="hero-title">Hey, <em>you.</em></h1><p id="daily-phrase">Some conversations feel like finding the right frequency.</p><button id="discover-button" class="action dark">Meet someone new <span>↗</span></button><div class="dash-footer"><span class="dash-pulse">●</span> INTERESTS FIRST, FRIENDSHIP FOLLOWS</div></div>
+        <div class="network" id="network" aria-label="Your Compa friends by interest"><div class="network-head"><span>YOUR CONNECTIONS</span><span>ONE FRIEND PER INTEREST</span></div><div class="network-center"><span id="network-initial">Y</span><small>YOU</small></div><div id="network-nodes" class="network-nodes"></div><div class="network-foot">TAP A NAME TO PICK UP WHERE YOU LEFT OFF ↗</div></div>
       </section>
       <section class="dashboard-section-panel"><span class="kicker">CHOOSE YOUR SPACE</span><div id="dashboard-sections" class="dashboard-sections" role="group" aria-label="Personal or academic"></div></section>
       <section class="panel interest-panel scroll-panel" id="interests"><div class="pixel-scene" aria-hidden="true"></div><div class="panel-top"><span>STEP 1 · THE GOOD STUFF</span><span>CHOOSE WHAT BRINGS YOU ALIVE</span></div><div class="section-heading"><div><span class="sticker">START HERE ✹</span><h2 id="interest-title">What are you into?</h2></div><p id="interest-description">Pick a topic. Find someone who can talk about it as long as you can.</p></div><div id="categories" class="academic-category-container" role="group" aria-label="Interests"></div><div id="interest-rail" class="section-rail">REAL PEOPLE ↗ REAL INTERESTS ↗ REAL FRIENDSHIP</div></section>
-      <section class="panel discover-panel scroll-panel" id="people"><div class="pixel-scene" aria-hidden="true"></div><div class="panel-top"><span>STEP 2 · FIND YOUR FRIEND</span><span>ONE CONNECTION PER INTEREST</span></div><div class="section-heading"><div><span class="sticker alt">NO SMALL TALK REQUIRED</span><h2 id="category-heading">Your next conversation.</h2></div><p id="candidate-count"></p></div><div id="candidate-area" aria-live="polite"></div></section>
-      <div class="closing">A friendship doesn't need a filter. <span>Just a place to begin. 🤝</span></div>
+      <section class="panel discover-panel scroll-panel" id="people"><div class="pixel-scene" aria-hidden="true"></div><div class="panel-top"><span>STEP 2 · MEET SOMEONE NEW</span><span>ONE CONNECTION PER INTEREST</span></div><div class="section-heading"><div><span class="sticker alt">NO SMALL TALK REQUIRED</span><h2 id="category-heading">Your next conversation.</h2></div><p id="candidate-count"></p></div><div id="candidate-area" aria-live="polite"></div></section>
+      <div class="closing">Start with what you share. <span>Let friendship grow. 🤝</span></div>
     </main>
-    <main id="circle-view" class="view hidden"><section class="panel circle-panel"><div class="pixel-scene" aria-hidden="true"></div><div class="panel-top"><span>YOUR PEOPLE</span><span>KEEP GOOD COMPANY</span></div><span class="sticker">YOUR CORNER ✹</span><h1>A few people.<br><em>A lot in common.</em></h1><p>Different people for different parts of you. One person for every interest.</p><div id="connection-area" class="connection-grid"></div></section></main>
+    <main id="circle-view" class="view hidden"><section class="panel circle-panel"><div class="pixel-scene" aria-hidden="true"></div><div class="panel-top"><span>YOUR COMPA FRIENDS</span><span>KEEP GOOD COMPANY</span></div><span class="sticker">YOUR CORNER ✹</span><h1>A few people.<br><em>A lot in common.</em></h1><p>Different people for different parts of you. One Compa friend for each interest.</p><div id="connection-area" class="connection-grid"></div></section></main>
     <footer><strong>COMPA</strong><span>Less scrolling past people. More showing up for them.</span><span>FRIENDSHIP FIRST, ALWAYS.</span></footer>
   </div>
   <dialog id="auth-dialog" class="dialog signup"><div id="auth-content"></div></dialog>
