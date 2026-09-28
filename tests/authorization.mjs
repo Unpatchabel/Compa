@@ -7,10 +7,12 @@ const assert=(v,msg)=>{if(!v)throw Error(msg)};
 try{
  await db.exec(`create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated; create publication supabase_realtime;`);
  await db.exec(fs.readFileSync('supabase/migrations/20260925000000_initial.sql','utf8'));
+ await db.exec(fs.readFileSync('supabase/migrations/20260928000000_academic.sql','utf8'));
  for(const [i,id] of ids.entries()){
  await q(`insert into auth.users(id) values('${id}')`);
  await q(`insert into public.profiles(id,name,area,primary_interest,secondary_interest,answers) values('${id}','Tester ${i}','Campus','music','gaming','["a","b","c"]')`);
  }
+ await q(`update public.profiles set academic_category='acad_year3_cyber' where id in ('${ids[0]}','${ids[1]}')`);
  const as=async i=>{await q('reset role');await q(`select set_config('request.jwt.claim.sub','${ids[i]}',false)`);await q('set role authenticated')};
  await as(0);
  assert((await q(`select * from public.send_hello('${ids[1]}','music','hi from A')`))[0].send_hello===null,'first like should be pending');
@@ -33,6 +35,9 @@ try{
  for(let i=0;i<25;i++){try{await q(`select public.send_message('${replacement}','message ${i}')`);sent++}catch{throttled=true;break}}
  assert(throttled&&sent<25,'message rate limit must reject rapid repeated writes');
  let oldChatDenied=false;try{await q(`select public.send_message('${match}','ended chat')`)}catch{oldChatDenied=true}assert(oldChatDenied,'ended match cannot receive new messages');
+ await as(0);assert((await q(`select public.send_hello('${ids[1]}','acad_year3_cyber','study?') as id`))[0].id===null,'academic hello pending');
+ await as(1);assert((await q(`select public.send_hello('${ids[0]}','acad_year3_cyber','yes') as id`))[0].id,'academic mutual match');
+ await as(2);let academicDenied=false;try{await q(`select public.send_hello('${ids[0]}','acad_year3_cyber','fake course')`)}catch{academicDenied=true}assert(academicDenied,'academic sender must have matching course and year');
  await as(0);await q(`select public.block_user('${ids[1]}')`);
  assert((await q(`select id from public.profiles where id='${ids[1]}'`)).length===0,'blocked profile hidden');
  let sendDenied=false;try{await q(`select public.send_message('${match}','after block')`)}catch{sendDenied=true}assert(sendDenied,'blocked chat send denied');
