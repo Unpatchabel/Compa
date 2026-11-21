@@ -33,6 +33,7 @@
       <div class="intro-brand"><span class="intro-name">compa</span><span class="intro-tagline">FIND YOUR PEOPLE</span></div>
     </div>
   </div>
+  <noscript>Compa requires JavaScript to sign in and use discovery.</noscript>
   <div class="shell">
     <header class="topbar">
       <a class="logo" href="#discover-view" aria-label="Compa home">compa</a>
@@ -52,11 +53,11 @@
     <main id="circle-view" class="view hidden"><section class="panel circle-panel"><div class="pixel-scene" aria-hidden="true"></div><div class="panel-top"><span>YOUR COMPA FRIENDS</span><span>KEEP GOOD COMPANY</span></div><span class="sticker">YOUR CORNER ✹</span><h1>A few people.<br><em>A lot in common.</em></h1><p>Different people for different parts of you. One Compa friend for each interest.</p><div id="connection-area" class="connection-grid"></div></section></main>
     <footer><strong>COMPA</strong><span>Less scrolling past people. More showing up for them.</span><span>FRIENDSHIP FIRST, ALWAYS.</span></footer>
   </div>
-  <dialog id="auth-dialog" class="dialog signup"><div id="auth-content"></div></dialog>
-  <dialog id="signup-dialog" class="dialog signup"><div id="signup-content"></div><button id="onboarding-signout" type="button" class="preview-continue">Sign out / switch account</button></dialog>
-  <dialog id="profile-dialog" class="dialog"><div id="profile-content"></div></dialog>
-  <dialog id="chat-dialog" class="dialog chat"><div id="chat-content"></div></dialog>
-  <dialog id="manage-dialog" class="dialog"><div id="manage-content"></div></dialog>
+  <dialog aria-label="Compa dialog" id="auth-dialog" class="dialog signup"><div id="auth-content"></div></dialog>
+  <dialog aria-label="Compa dialog" id="signup-dialog" class="dialog signup"><div id="signup-content"></div><button id="onboarding-signout" type="button" class="preview-continue">Sign out / switch account</button></dialog>
+  <dialog aria-label="Compa dialog" id="profile-dialog" class="dialog"><div id="profile-content"></div></dialog>
+  <dialog aria-label="Compa dialog" id="chat-dialog" class="dialog chat"><div id="chat-content"></div></dialog>
+  <dialog aria-label="Compa dialog" id="manage-dialog" class="dialog"><div id="manage-content"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/app.js"></script>
 </body>

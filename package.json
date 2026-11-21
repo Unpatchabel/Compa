@@ -7,13 +7,22 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node tests/authorization.mjs"
+    "test": "node tests/authorization.mjs && node tests/upgrade.mjs && node tests/config.mjs",
+    "test:integration": "node tests/supabase-local.mjs",
+    "check": "node --check app.js && node scripts/check-release.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:dom": "node tests/dom.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.0.0"
+    "@supabase/supabase-js": "^2.117.2"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
-    "vite": "^6.0.0"
+    "jsdom": "^31.0.1",
+    "playwright": "^1.65.1",
+    "vite": "^6.4.6"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   }
 }

@@ -3,17 +3,50 @@ import fs from 'node:fs';
 const db=new PGlite();
 const ids=['11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333'];
 const q=async sql=>(await db.query(sql)).rows;
-const assert=(v,msg)=>{if(!v)throw Error(msg)};
+let checks=0;
+const assert=(v,msg)=>{checks++;if(!v)throw Error(msg)};
+const denied=async(sql,msg)=>{let rejected=false;try{await q(sql)}catch{rejected=true}assert(rejected,msg)};
 try{
  await db.exec(`create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated; create publication supabase_realtime;`);
- await db.exec(fs.readFileSync('supabase/migrations/20260925000000_initial.sql','utf8'));
- await db.exec(fs.readFileSync('supabase/migrations/20260928000000_academic.sql','utf8'));
+ for(const file of fs.readdirSync('supabase/migrations').filter(f=>f.endsWith('.sql')).sort()) await db.exec(fs.readFileSync(`supabase/migrations/${file}`,'utf8'));
  for(const [i,id] of ids.entries()){
  await q(`insert into auth.users(id) values('${id}')`);
  await q(`insert into public.profiles(id,name,area,primary_interest,secondary_interest,answers) values('${id}','Tester ${i}','Campus','music','gaming','["a","b","c"]')`);
  }
  await q(`update public.profiles set academic_category='acad_year3_cyber' where id in ('${ids[0]}','${ids[1]}')`);
  const as=async i=>{await q('reset role');await q(`select set_config('request.jwt.claim.sub','${ids[i]}',false)`);await q('set role authenticated')};
+ await q('reset role');
+ assert((await q(`select count(*)::int n from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity`))[0].n===0,'RLS enabled on every app table');
+ assert((await q(`select count(*)::int n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef and not coalesce(p.proconfig @> array['search_path=""'],false)`))[0].n===0,'definers pin search path');
+ await q('set role anon');
+ for(const table of ['profiles','blocks','likes','hello_events','passes','matches','match_members','messages','reports']) await denied(`select * from public.${table}`,'anonymous table access denied: '+table);
+ for(const sql of [`select public.send_hello('${ids[1]}','music','x')`,`select public.report_user('${ids[1]}','a valid reason')`,`select public.delete_my_account()`,`select public.is_blocked('${ids[0]}','${ids[1]}')`])await denied(sql,'anonymous RPC denied');
+ await as(0);
+ await denied('select * from auth.users','raw Auth user data private');
+ assert((await q(`update public.profiles set name='forged' where id='${ids[1]}' returning id`)).length===0,'cannot update another profile');
+ await denied(`insert into public.profiles(id,name,area,primary_interest,secondary_interest,answers) values('${ids[2]}','Forged','Campus','music','gaming','["a","b","c"]')`,'cannot forge profile owner');
+ await denied(`update public.profiles set created_at=now()`,'cannot forge profile timestamps');
+ await denied(`update public.profiles set id='${ids[2]}' where id='${ids[0]}'`,'cannot reassign ownership');
+ for(const answers of ['[1,2,3]','[{},"b","c"]','["","b","c"]','{}','["a","b"]',JSON.stringify(['x'.repeat(81),'b','c'])]) await denied(`update public.profiles set answers='${answers}'::jsonb where id='${ids[0]}'`,'malformed answers rejected');
+ await q(`update public.profiles set answers='["🎸","b","c"]' where id='${ids[0]}'`);
+ for(const category of ['NULL',"'invalid'"])await denied(`select public.send_hello('${ids[1]}',${category},'hello')`,'invalid category rejected');
+ await denied(`select public.send_hello('${ids[0]}','music','self')`,'self like rejected');
+ await denied(`select public.send_hello('${ids[1]}','music',repeat('x',281))`,'oversized opener rejected');
+ await denied(`select public.report_user('${ids[1]}','short')`,'short report rejected');
+ for(const table of ['blocks','likes','hello_events','passes','matches','match_members','messages','reports']) await denied(`delete from public.${table}`,'direct delete denied: '+table);
+ await as(0);
+ await q(`select public.send_hello('${ids[1]}','music','expiry fixture')`);
+ await denied(`select public.send_hello('${ids[1]}','music','duplicate')`,'duplicate pending hello rejected');
+ await q('reset role');await q(`update public.likes set expires_at=now()-interval '1 minute'`);
+ await as(0);await denied(`select public.accept_mutual('${ids[1]}','music')`,'expired own hello cannot be accepted');
+ await as(1);assert((await q(`select public.send_hello('${ids[0]}','music','expired reciprocal') id`))[0].id===null,'expired reciprocal does not create a match');
+ await q('reset role');await q('delete from public.likes');await q('delete from public.hello_events');
+ assert((await q(`select count(*)::int n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('anon',p.oid,'EXECUTE')`))[0].n===0,'anonymous execution denied for all app functions');
+ await q(`insert into public.likes(sender,target,category) values('${ids[0]}','${ids[2]}','acad_year3_cyber'),('${ids[2]}','${ids[0]}','acad_year3_cyber')`);
+ await as(0);await denied(`select public.accept_mutual('${ids[2]}','acad_year3_cyber')`,'stale academic counterpart cannot accept queued mutual');
+ await denied(`select public.send_hello('${ids[2]}','acad_year3_cyber','stale')`,'stale reciprocal academic category cannot bypass current profiles');
+ await q('reset role');await q('delete from public.likes');
+
  await as(0);
  assert((await q(`select * from public.send_hello('${ids[1]}','music','hi from A')`))[0].send_hello===null,'first like should be pending');
  await as(1);
@@ -21,9 +54,16 @@ try{
  assert(match,'reciprocal like should match');
  const matchCount=await q(`select count(*)::int as n from public.matches`);assert(matchCount[0].n===1,'one match');
  await q(`select public.send_message('${match}','private hello')`);
+ await denied(`select public.send_message('${match}',repeat('x',501))`,'oversized message rejected');
+ await denied(`select public.send_message('${match}','  ')`,'empty message rejected');
  await as(2);
  assert((await q('select * from public.messages')).length===0,'third party read messages');
- let denied=false;try{await q(`insert into public.messages(match_id,sender,body) values('${match}','${ids[2]}','forged')`)}catch{denied=true}assert(denied,'direct message insert denied');
+ assert((await q('select * from public.matches')).length===0,'third party matches hidden');
+ assert((await q('select * from public.likes')).length===0,'third party likes hidden');
+ assert((await q('select * from public.blocks')).length===0,'other blockers private');
+ await denied(`select public.send_message('${match}','intruder')`,'unrelated conversation send rejected');
+ await denied(`select public.end_match('${match}')`,'unrelated end match rejected');
+ let directDenied=false;try{await q(`insert into public.messages(match_id,sender,body) values('${match}','${ids[2]}','forged')`)}catch{directDenied=true}assert(directDenied,'direct message insert denied');
  await q(`select public.send_hello('${ids[0]}','music','hello from C')`);
  await as(0);
  assert((await q(`select public.send_hello('${ids[2]}','music','hello to C') as id`))[0].id===null,'a second mutual like must stay queued');
@@ -42,5 +82,19 @@ try{
  assert((await q(`select id from public.profiles where id='${ids[1]}'`)).length===0,'blocked profile hidden');
  let sendDenied=false;try{await q(`select public.send_message('${match}','after block')`)}catch{sendDenied=true}assert(sendDenied,'blocked chat send denied');
  await as(1);let helloDenied=false;try{await q(`select public.send_hello('${ids[0]}','music','after block')`)}catch{helloDenied=true}assert(helloDenied,'blocked hello denied');
- console.log('Migration and authorization tests passed: matching, queued mutual like, one active friend/category, persisted private chat, rate limit, direct-write denial, ended-chat denial, block');
+ assert((await q(`select * from public.messages where match_id='${match}'`)).length===0,'blocked history hidden from other participant');
+ await as(2);let helloQuota=false;
+ for(let i=0;i<25;i++){try{await q(`select public.send_hello('${ids[1]}','music','quota test')`);await q(`select public.withdraw_hello('${ids[1]}','music')`)}catch(e){assert(e.message.includes('Too many hellos'),'expected hello quota error');helloQuota=true;break}}
+ assert(helloQuota,'withdrawing likes does not reset hello quota');
+ await as(0);assert((await q(`select * from public.messages where match_id='${match}'`)).length===0,'blocked history hidden from blocker');
+ for(let i=0;i<5;i++)await q(`select public.report_user('${ids[2]}','test report reason ${i}')`);
+ await denied(`select public.report_user('${ids[2]}','sixth test report')`,'daily report quota');
+ await as(2);assert((await q('select * from public.reports')).length===0,'subjects cannot read reports');
+ await as(0);await q(`select public.delete_my_account()`);
+ await q('reset role');
+ assert((await q(`select * from auth.users where id='${ids[0]}'`)).length===0,'self account deleted');
+ assert((await q(`select count(*)::int n from auth.users`))[0].n===2,'other accounts preserved');
+ assert((await q(`select * from public.matches where person_a='${ids[0]}' or person_b='${ids[0]}'`)).length===0,'connections cascade on deletion');
+ console.log(`PASS: ${checks} assertions; all migrations; embedded PostgreSQL role/RLS/RPC tests (not hosted Supabase or multi-session concurrency).`);
+
 }catch(e){console.error(e);process.exitCode=1}finally{await db.close()}
